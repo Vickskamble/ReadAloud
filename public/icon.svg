@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ReadAloud">
+  <rect width="512" height="512" rx="112" fill="#4f46e5" />
+  <path
+    d="M150 232v48h56l66 66V166l-66 66h-56Zm-40 0h44v48h-44v-48Z"
+    fill="#ffffff"
+  />
+  <g fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round">
+    <path d="M330 201a62 62 0 0 1 0 110" opacity="1" />
+    <path d="M368 156a100 100 0 0 1 0 200" opacity="0.72" />
+  </g>
+</svg>

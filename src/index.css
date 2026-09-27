@@ -1,0 +1,721 @@
+/* ==========================================================================
+   ReadAloud - minimal, utility-focused design.
+   One screen, one primary action: paste, press play, listen.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f4f5f9;
+  --bg-accent: #e8eaf4;
+  --surface: #ffffff;
+  --surface-muted: #f7f8fc;
+  --border: #d9dce8;
+  --border-strong: #b9bed3;
+  --text: #14161f;
+  --text-muted: #4b5163;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-contrast: #ffffff;
+  --focus: #4338ca;
+  --danger: #b42318;
+  --danger-bg: #fef3f2;
+  --danger-border: #fda29b;
+  --shadow: 0 1px 2px rgb(20 22 31 / 6%), 0 12px 32px -12px rgb(20 22 31 / 18%);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+    'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Bengali',
+    'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f1a;
+    --bg-accent: #121829;
+    --surface: #141a29;
+    --surface-muted: #1b2233;
+    --border: #2a3245;
+    --border-strong: #3d4761;
+    --text: #eef1f7;
+    --text-muted: #a3acc2;
+    --accent: #4f46e5;
+    --accent-hover: #6366f1;
+    --accent-contrast: #ffffff;
+    --focus: #a5b4fc;
+    --danger: #fda29b;
+    --danger-bg: #2a1614;
+    --danger-border: #7a2b24;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 16px 40px -16px rgb(0 0 0 / 70%);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--bg-accent) 0%, transparent 60%),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visible focus for every interactive element. */
+:where(a, button, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.app {
+  width: min(100% - 2rem, 60rem);
+  margin-inline: auto;
+  padding-block: clamp(1.5rem, 4vw, 3rem) clamp(2rem, 5vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2.5vw, 1.5rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+/* ------------------------------------------------------------------ header */
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.app-header__title {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app-header__subtitle {
+  margin: 0;
+  font-size: clamp(0.95rem, 2.5vw, 1.05rem);
+  color: var(--text-muted);
+}
+
+.app-header__privacy {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- text editor */
+
+.text-editor__input {
+  display: block;
+  width: 100%;
+  /* Sized for a chat message, not an article: about five lines, so the whole
+     app still fits on one screen and the live caption stays visible. */
+  min-height: clamp(6.5rem, 16dvh, 8.5rem);
+  max-height: 12rem;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  /* 16px on mobile prevents iOS Safari from zooming on focus. */
+  scrollbar-width: thin;
+}
+
+.text-editor__input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.text-editor__input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+/* ------------------------------------------------------------------- stats */
+
+.text-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.text-stats > span:not(.text-stats__divider) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.text-stats__label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+
+.text-stats__value {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- settings */
+
+.app__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.app__settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.voice-selector {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.field__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.field__control {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.field__control:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.field__control:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------- segmented control */
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.segmented__option {
+  flex: 1 1 auto;
+  min-width: 3.5rem;
+  min-height: 44px;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.segmented__option:hover:not(:disabled):not([aria-pressed='true']) {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.segmented__option[aria-pressed='true'] {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.segmented__option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* --------------------------------------------------------------- playback */
+
+.speech-controls__primary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 52px;
+  padding: 0.7rem 1.25rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.button__icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
+
+.button--primary {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.button--secondary {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.button--ghost {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.button--ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* -------------------------------------------------------- status & notices */
+
+.reading-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.reading-status__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex: none;
+}
+
+.reading-status__dot--reading {
+  background: #16a34a;
+  animation: readaloud-pulse 1.4s ease-in-out infinite;
+}
+
+.reading-status__dot--paused {
+  background: #d97706;
+}
+
+.reading-status__dot--completed {
+  background: #16a34a;
+}
+
+.reading-status__label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.reading-status__progress {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes readaloud-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+.status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.status-message__text {
+  margin: 0;
+  flex: 1;
+}
+
+.status-message__dismiss {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: -0.25rem -0.35rem 0 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.status-message__dismiss:hover {
+  background: rgb(0 0 0 / 8%);
+}
+
+.notice {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* ------------------------------------------------------------ breakpoints */
+
+@media (min-width: 34rem) {
+  .voice-selector {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .speech-controls__primary {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .speech-controls__primary .button--primary {
+    flex: 1 1 12rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  .app__settings-row {
+    flex-direction: row;
+    gap: 2rem;
+  }
+
+  .app__settings-row > .field {
+    flex: 1 1 0;
+  }
+}
+
+@media (min-width: 64rem) {
+  .text-editor__input {
+    min-height: 8rem;
+  }
+}
+
+/* ------------------------------------------------- motion & contrast prefs */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: #6b7280;
+    --border-strong: #374151;
+    --text-muted: #374151;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --border: #9aa4bd;
+      --border-strong: #cbd2e2;
+      --text-muted: #cbd2e2;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- stage --- */
+/* The live panel: a status signal, a wave that moves with the voice, a caption
+   of the words being read, and reading progress. */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.stage__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 24px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.signal__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.signal__dot--reading {
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: signal-pulse 1.6s ease-out infinite;
+}
+
+.signal__dot--paused {
+  background: var(--danger);
+  animation: none;
+}
+
+.signal__dot--completed {
+  background: #12a150;
+}
+
+@keyframes signal-pulse {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  to {
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+/* ------------------------------------------------------------- the wave --- */
+
+.voice-wave {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 260px;
+  height: 34px;
+  opacity: 0.45;
+  transition: opacity 200ms ease;
+}
+
+.voice-wave--active,
+.voice-wave--paused {
+  opacity: 1;
+}
+
+.voice-wave__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.voice-wave rect {
+  fill: var(--accent);
+}
+
+.voice-wave--paused rect {
+  fill: var(--text-muted);
+}
+
+/* --------------------------------------------------------- the caption --- */
+
+.live-caption {
+  min-height: 3.4rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.live-caption__label {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+}
+
+.live-caption__text {
+  margin: 0;
+  max-height: 4.4rem;
+  overflow-y: auto;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.live-caption--idle .live-caption__text {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.live-caption__word {
+  padding: 0 0.1em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ----------------------------------------------------------- the gauge --- */
+
+.progress__labels {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.progress__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-accent);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #22d3ee));
+  transition: width 260ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal__dot--reading {
+    animation: none;
+  }
+
+  .progress__fill {
+    transition: none;
+  }
+}

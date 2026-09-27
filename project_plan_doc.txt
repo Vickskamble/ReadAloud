@@ -1,0 +1,1581 @@
+# ReadAloud — Text-to-Speech Reading App
+
+## Complete Product & Development Specification
+
+### 1. Project Overview
+
+Build a lightweight **Text-to-Speech (TTS) application** called **ReadAloud**.
+
+The core purpose of the application is extremely simple:
+
+> **User koi bhi text paste/type kare → app us text ko loudly read kare.**
+
+The text can be:
+
+* English
+* Hindi
+* Hinglish
+* Marathi
+* Gujarati
+* Bengali
+* Tamil
+* Telugu
+* Any other language supported by the device/browser TTS engine
+
+### Core Principle
+
+**NO AI should be used.**
+
+The application must use the **native/device/browser Text-to-Speech engine**.
+
+There should be:
+
+* No AI API
+* No OpenAI API
+* No Gemini API
+* No Claude API
+* No cloud-based AI processing
+* No backend database
+* No user account
+* No login
+* No text storage
+
+---
+
+# 2. Main User Flow
+
+The application should have an extremely simple workflow:
+
+```text
+Open App
+   ↓
+Paste / Type Text
+   ↓
+Select Language / Voice (optional)
+   ↓
+Press PLAY
+   ↓
+Text is spoken loudly
+   ↓
+User can Pause / Resume / Stop
+   ↓
+User can clear text
+```
+
+The app should feel like a **simple utility**, not a complicated productivity application.
+
+---
+
+# 3. Privacy Requirement
+
+Privacy is one of the most important product requirements.
+
+### Text must NOT be stored.
+
+The application must not permanently save:
+
+* User text
+* Reading history
+* Previous text
+* User documents
+* Voice history
+* Usage history
+
+### No database
+
+Do NOT implement:
+
+* Firebase
+* Supabase
+* MongoDB
+* MySQL
+* PostgreSQL
+* Local database
+
+unless specifically required later.
+
+### Temporary memory
+
+Text may exist temporarily in the application memory while the user is using the app.
+
+Example:
+
+```text
+User opens app
+↓
+Pastes text
+↓
+Text remains temporarily in memory
+↓
+Text is spoken
+↓
+User closes/refreshes app
+↓
+Text is cleared
+```
+
+### Important
+
+Do not implement:
+
+* "Recent texts"
+* "History"
+* "Saved texts"
+* "Favorites"
+* "Documents"
+* "Cloud sync"
+
+---
+
+# 4. No AI Requirement
+
+This application must NOT use artificial intelligence.
+
+Do not add AI-based:
+
+* Translation
+* Summarization
+* Grammar correction
+* Text rewriting
+* Text understanding
+* AI voice generation
+* AI pronunciation
+* AI chatbot
+
+The application is strictly:
+
+> **Text → Native TTS Engine → Audio**
+
+---
+
+# 5. TTS Engine
+
+Use the native Text-to-Speech capability available on the target platform.
+
+For web:
+
+```javascript
+window.speechSynthesis
+SpeechSynthesisUtterance
+```
+
+For Android/native implementation, use the platform's native TTS engine.
+
+The implementation should detect available voices from the user's device.
+
+---
+
+# 6. Language Support
+
+The application should support all voices exposed by the device/browser.
+
+Do NOT hardcode only English.
+
+Example available languages may include:
+
+```text
+English
+Hindi
+Marathi
+Gujarati
+Bengali
+Tamil
+Telugu
+Kannada
+Malayalam
+Punjabi
+Urdu
+etc.
+```
+
+Actual available languages depend on the device/browser and installed TTS voices.
+
+Therefore:
+
+### Voice detection
+
+On application startup:
+
+```text
+Load available voices
+↓
+Read language + voice information
+↓
+Populate Voice/Language selector
+```
+
+If a voice is not installed on the user's device, the application should not pretend that it is available.
+
+---
+
+# 7. Hinglish Support
+
+Hinglish requires special consideration.
+
+Example:
+
+```text
+Hello bhai, kya haal hai?
+Aaj office jaana hai.
+```
+
+There may not always be a dedicated Hinglish voice.
+
+Therefore, the app should provide a simple language/voice selection mechanism.
+
+The user can choose the voice that produces the best pronunciation on their device.
+
+Do NOT use AI to detect or convert Hinglish.
+
+---
+
+# 8. Text Input Screen
+
+The home screen should immediately show a large text input area.
+
+### Placeholder
+
+Example:
+
+```text
+Paste or type your text here...
+```
+
+The input area should support:
+
+* Typing
+* Paste
+* Copy
+* Select all
+* Multiline text
+* Long text
+
+---
+
+# 9. Main Controls
+
+Primary controls:
+
+```text
+▶ Play
+⏸ Pause
+▶ Resume
+⏹ Stop
+🗑 Clear
+```
+
+The UI should clearly communicate which controls are currently available.
+
+Example:
+
+### Before playback
+
+```text
+PLAY
+CLEAR
+```
+
+### During playback
+
+```text
+PAUSE
+STOP
+CLEAR
+```
+
+### After pause
+
+```text
+RESUME
+STOP
+CLEAR
+```
+
+---
+
+# 10. Text Highlighting
+
+If technically possible using the selected implementation, provide basic visual indication of the currently spoken text.
+
+For example:
+
+```text
+This is the text being
+spoken by the application.
+```
+
+The currently spoken portion may be highlighted.
+
+However:
+
+### Priority
+
+TTS functionality is more important than word-by-word highlighting.
+
+Do not compromise the core TTS functionality for highlighting.
+
+If reliable synchronization is not possible with the chosen platform, omit this feature rather than implementing an unstable solution.
+
+---
+
+# 11. Speech Controls
+
+Provide simple controls for:
+
+### Speech Rate
+
+Example:
+
+```text
+0.5x
+0.75x
+1x
+1.25x
+1.5x
+2x
+```
+
+Default:
+
+```text
+1x
+```
+
+Technically map these to the native TTS rate.
+
+---
+
+### Pitch
+
+Optional control:
+
+```text
+Low
+Normal
+High
+```
+
+or a slider.
+
+Default:
+
+```text
+Normal
+```
+
+---
+
+### Voice
+
+Provide a voice selector:
+
+```text
+Voice
+↓
+English - Male
+English - Female
+Hindi - ...
+Marathi - ...
+...
+```
+
+Only display voices actually available from the device/browser.
+
+---
+
+# 12. Automatic Text Chunking
+
+This is an important technical requirement.
+
+Native browser/device TTS engines may have limitations when extremely large text is sent as one utterance.
+
+Therefore:
+
+### Do NOT blindly send huge text as one TTS request.
+
+Implement text chunking.
+
+Example:
+
+```text
+Large text
+↓
+Split into manageable chunks
+↓
+Speak Chunk 1
+↓
+Speak Chunk 2
+↓
+Speak Chunk 3
+↓
+Continue until complete
+```
+
+Chunking should preferably respect:
+
+* Sentences
+* Paragraphs
+* Word boundaries
+
+Do not cut words in half.
+
+---
+
+# 13. Long Text Handling
+
+The application should support reasonably long text.
+
+Examples:
+
+* WhatsApp messages
+* Emails
+* Articles
+* Notes
+* PDFs copied as text
+* Web content copied as text
+* Study material
+
+If the user pastes very large text:
+
+```text
+Detect large input
+↓
+Chunk text
+↓
+Queue chunks
+↓
+Read sequentially
+```
+
+Do not crash or freeze the application.
+
+---
+
+# 14. Empty Text Handling
+
+If the user presses Play without entering text:
+
+Show a simple message:
+
+```text
+Please enter some text first.
+```
+
+Do not start the TTS engine.
+
+---
+
+# 15. Clear Button
+
+When user presses:
+
+```text
+CLEAR
+```
+
+the application should:
+
+1. Stop speech
+2. Clear speech queue
+3. Clear text field
+4. Reset playback state
+
+No text should remain in application state unnecessarily.
+
+---
+
+# 16. Stop Behaviour
+
+When user presses STOP:
+
+```text
+Stop current speech
+↓
+Cancel remaining queue
+↓
+Reset playback state
+```
+
+The next Play should start from the beginning of the current text.
+
+---
+
+# 17. Pause / Resume
+
+If supported by the platform:
+
+```text
+PLAY
+↓
+PAUSE
+↓
+RESUME
+```
+
+The application should preserve the current playback position as far as the native TTS engine permits.
+
+If exact pause/resume position cannot reliably be controlled by the target platform, use the platform's native pause/resume functionality rather than creating a fake implementation.
+
+---
+
+# 18. Auto Continue
+
+When one speech chunk finishes:
+
+```text
+Chunk 1 finished
+↓
+Automatically speak Chunk 2
+↓
+Chunk 2 finished
+↓
+Automatically speak Chunk 3
+```
+
+The user should not need to manually press Play after every chunk.
+
+---
+
+# 19. Error Handling
+
+Handle common TTS errors gracefully.
+
+Examples:
+
+```text
+TTS unavailable
+Voice unavailable
+Speech failed
+Browser does not support TTS
+```
+
+Display a simple understandable message.
+
+Example:
+
+```text
+Text-to-Speech is not available on this device/browser.
+Please try another browser or install a supported voice.
+```
+
+Do not expose technical stack traces to the user.
+
+---
+
+# 20. Offline Requirement
+
+Where the device/browser's native TTS engine works offline, the application should work without an internet connection.
+
+The app itself must NOT depend on an external AI/cloud speech API.
+
+Important distinction:
+
+```text
+Application Internet Requirement:
+NO
+
+Device TTS availability:
+Depends on OS/browser/installed voices
+```
+
+---
+
+# 21. No Login
+
+The app must NOT require:
+
+* Sign up
+* Login
+* OTP
+* Email
+* Password
+* Google login
+* Phone number
+
+The application should open directly into the text-reading interface.
+
+---
+
+# 22. No Backend
+
+MVP should be completely frontend/local.
+
+Architecture:
+
+```text
+User
+ ↓
+ReadAloud UI
+ ↓
+Temporary application state
+ ↓
+Native TTS API
+ ↓
+Device Speaker
+```
+
+No backend server is required.
+
+---
+
+# 23. No Analytics for Text
+
+Do not send user-entered text to analytics systems.
+
+Never track:
+
+```text
+Exact user text
+```
+
+If analytics are ever introduced later, they must not capture the text content.
+
+For MVP, analytics should preferably be omitted entirely.
+
+---
+
+# 24. UI/UX Design
+
+The design should be:
+
+* Clean
+* Modern
+* Minimal
+* Fast
+* Mobile friendly
+* Desktop friendly
+* Accessible
+* Easy for non-technical users
+
+Avoid unnecessary:
+
+* Animations
+* Cards everywhere
+* Complex dashboards
+* Sidebars
+* Menus
+* User accounts
+* Settings overload
+
+The application has one primary purpose:
+
+> **Paste text → Press Play → Listen**
+
+---
+
+# 25. Suggested Home Screen
+
+```text
+┌─────────────────────────────────────┐
+│              ReadAloud              │
+│       Listen to any text aloud      │
+├─────────────────────────────────────┤
+│                                     │
+│  Paste or type your text here...   │
+│                                     │
+│                                     │
+│                                     │
+│                                     │
+├─────────────────────────────────────┤
+│ Voice: [Select Voice ▼]             │
+│                                     │
+│ Speed: [0.5x] [1x] [1.5x] [2x]     │
+│                                     │
+│      ▶ PLAY    ⏸ PAUSE    ⏹ STOP   │
+│                                     │
+│             CLEAR                   │
+└─────────────────────────────────────┘
+```
+
+---
+
+# 26. Responsive Design
+
+The app must work properly on:
+
+### Desktop
+
+* Windows
+* macOS
+* Linux
+
+### Mobile
+
+* Android
+* iPhone/iOS browsers
+
+Responsive breakpoints should be implemented.
+
+The text area should remain comfortable for long text.
+
+Buttons should be large enough for touch interaction.
+
+---
+
+# 27. Accessibility
+
+Implement basic accessibility:
+
+* Keyboard navigation
+* Proper button labels
+* Visible focus states
+* Sufficient contrast
+* Screen-reader-friendly labels
+* Large touch targets
+* Semantic HTML where applicable
+
+Keyboard shortcuts may optionally be supported.
+
+Example:
+
+```text
+Space → Play/Pause
+Escape → Stop
+Ctrl/Cmd + A → Select all text
+```
+
+Do not override normal browser behavior unnecessarily.
+
+---
+
+# 28. PWA Support
+
+If the project is implemented as a Progressive Web App, optionally support:
+
+```text
+Add to Home Screen
+```
+
+The app should feel like a lightweight utility.
+
+PWA should NOT introduce unnecessary backend infrastructure.
+
+---
+
+# 29. Data Lifecycle
+
+The required lifecycle is:
+
+```text
+APP OPEN
+   ↓
+EMPTY TEXT
+   ↓
+USER ENTERS TEXT
+   ↓
+TEXT EXISTS TEMPORARILY
+   ↓
+TTS READS TEXT
+   ↓
+USER CLEARS / CLOSES APP
+   ↓
+TEXT DISCARDED
+```
+
+Do not persist the text.
+
+---
+
+# 30. Browser Refresh
+
+On browser refresh:
+
+```text
+Text should NOT be restored.
+```
+
+Do not use:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+cookies
+```
+
+for storing the user's actual text.
+
+The safest implementation is to keep the text only in runtime state.
+
+---
+
+# 31. Application Close
+
+When the application is closed:
+
+```text
+Current text should not be recoverable from app storage.
+```
+
+No "restore last text" functionality.
+
+---
+
+# 32. Security Requirements
+
+The application should:
+
+* Avoid unnecessary third-party scripts
+* Avoid sending text externally
+* Sanitize any rendered text if HTML rendering is introduced
+* Not use eval()
+* Not expose secrets
+* Not include API keys
+* Not include unnecessary permissions
+
+Since this is a TTS application, the simplest architecture is preferred.
+
+---
+
+# 33. Recommended Technology
+
+For a web-based MVP:
+
+```text
+Frontend:
+HTML
+CSS
+JavaScript
+```
+
+or
+
+```text
+React
+TypeScript
+```
+
+if the development team prefers React.
+
+### Important
+
+Do not introduce a large framework or backend unless there is a concrete reason.
+
+Native browser API:
+
+```javascript
+SpeechSynthesis
+SpeechSynthesisUtterance
+```
+
+should be the primary TTS mechanism.
+
+---
+
+# 34. Suggested Architecture
+
+If React/TypeScript is used:
+
+```text
+src/
+├── components/
+│   ├── TextEditor
+│   ├── VoiceSelector
+│   ├── SpeechControls
+│   ├── SpeedControl
+│   └── StatusMessage
+│
+├── hooks/
+│   └── useSpeechSynthesis
+│
+├── services/
+│   └── speechService
+│
+├── utils/
+│   └── textChunker
+│
+├── App
+└── main
+```
+
+Keep the architecture modular but do not over-engineer the project.
+
+---
+
+# 35. Speech Service Responsibilities
+
+Create a dedicated speech service/hook responsible for:
+
+```text
+getVoices()
+speak()
+pause()
+resume()
+stop()
+```
+
+The UI should not directly contain all speech-management logic.
+
+---
+
+# 36. Text Chunker Responsibilities
+
+The text chunker should:
+
+1. Receive complete text
+2. Detect paragraphs/sentences
+3. Create manageable chunks
+4. Avoid breaking words
+5. Return chunks in correct order
+
+Example:
+
+```text
+Input:
+"Hello. This is a long paragraph..."
+
+Output:
+[
+  "Hello.",
+  "This is a long paragraph..."
+]
+```
+
+For extremely long sentences, split safely at word boundaries.
+
+---
+
+# 37. Voice Detection
+
+Use:
+
+```javascript
+speechSynthesis.getVoices()
+```
+
+and:
+
+```javascript
+speechSynthesis.onvoiceschanged
+```
+
+because some browsers populate voices asynchronously.
+
+The application must handle this correctly.
+
+---
+
+# 38. Voice Selection
+
+Store the selected voice only in runtime state.
+
+Do not permanently save:
+
+```text
+selected voice
+```
+
+unless a future version explicitly adds user preferences.
+
+---
+
+# 39. Language Filter
+
+Provide an optional language filter:
+
+```text
+All Languages
+English
+Hindi
+Marathi
+...
+```
+
+The list should be generated from available voices rather than a fake static list.
+
+---
+
+# 40. Text Counter
+
+Optional useful information:
+
+```text
+Characters: 1,250
+Words: 210
+```
+
+This should be calculated locally.
+
+Do not send the text to a server for counting.
+
+---
+
+# 41. Reading Status
+
+Display a small status indicator:
+
+```text
+Ready
+Reading...
+Paused
+Stopped
+Completed
+```
+
+Example:
+
+```text
+● Reading
+```
+
+The indicator should not be distracting.
+
+---
+
+# 42. Completion
+
+After all chunks are spoken:
+
+```text
+Status: Completed
+```
+
+The Play button should become available again.
+
+---
+
+# 43. Mobile Considerations
+
+On mobile browsers:
+
+* Prevent accidental tiny buttons
+* Keep controls visible
+* Use responsive textarea
+* Avoid unnecessary fixed elements covering the keyboard
+* Ensure Play/Pause/Stop remain easy to access
+
+---
+
+# 44. Clipboard
+
+The user should be able to paste text normally.
+
+Do not request clipboard permissions unless necessary.
+
+Normal browser paste should work.
+
+---
+
+# 45. Text Formatting
+
+The app should preserve basic readable formatting:
+
+```text
+Paragraphs
+Line breaks
+Sentences
+```
+
+But TTS should read the content naturally.
+
+Do not literally speak unnecessary formatting characters.
+
+For example, avoid reading:
+
+```text
+###
+***
+```
+
+as part of normal speech where possible.
+
+---
+
+# 46. Special Characters
+
+The system should gracefully handle:
+
+```text
+@
+#
+$
+%
+&
+*
+()
+[]
+{}
+```
+
+URLs and email addresses should not crash speech.
+
+Example:
+
+```text
+https://example.com
+```
+
+should be spoken using the native TTS engine.
+
+Perfect pronunciation is dependent on the selected voice.
+
+---
+
+# 47. Very Long Input Protection
+
+If the user pastes an extremely large amount of text:
+
+Do not allow the browser tab to freeze.
+
+Implement reasonable processing.
+
+Example:
+
+```text
+Input
+↓
+Validate
+↓
+Chunk
+↓
+Queue
+↓
+Read
+```
+
+If a practical maximum is required for a particular platform, show a clear message instead of silently truncating text.
+
+---
+
+# 48. Browser Compatibility
+
+Test at minimum on:
+
+### Desktop
+
+* Google Chrome
+* Microsoft Edge
+* Firefox
+
+### Mobile
+
+* Android Chrome
+* iOS Safari
+
+Important:
+
+TTS voice availability can differ between browsers and operating systems.
+
+The application must gracefully handle those differences.
+
+---
+
+# 49. Testing Requirements
+
+Test the following:
+
+### Basic
+
+* Type text
+* Paste text
+* Play
+* Pause
+* Resume
+* Stop
+* Clear
+
+### Languages
+
+* English
+* Hindi
+* Hinglish
+* Marathi
+* At least several other installed languages
+
+### Text
+
+* Short sentence
+* Multiple paragraphs
+* Long article
+* Empty input
+* Special characters
+* Numbers
+* URLs
+* Email addresses
+
+### TTS
+
+* No available voice
+* Voice changes
+* Browser refresh
+* Browser close
+* Speech completion
+* Speech interruption
+
+### Responsive
+
+* Desktop
+* Tablet
+* Mobile
+
+---
+
+# 50. Privacy Testing
+
+Verify that:
+
+```text
+User text is NOT present in:
+localStorage
+sessionStorage
+IndexedDB
+cookies
+backend
+database
+analytics payloads
+URL parameters
+```
+
+Also verify that no third-party API receives the user's text.
+
+---
+
+# 51. Performance
+
+The application should:
+
+* Load quickly
+* Have minimal dependencies
+* Avoid unnecessary API calls
+* Avoid unnecessary re-renders
+* Handle long text without freezing
+* Stop speech cleanly
+
+---
+
+# 52. Error Messages
+
+Use simple user-friendly messages.
+
+Examples:
+
+### Empty text
+
+```text
+Please enter some text first.
+```
+
+### TTS unavailable
+
+```text
+Text-to-Speech is not available on this device.
+```
+
+### Voice unavailable
+
+```text
+The selected voice is no longer available. Please choose another voice.
+```
+
+### General error
+
+```text
+Something went wrong while reading the text. Please try again.
+```
+
+Avoid technical error dumps.
+
+---
+
+# 53. UI Theme
+
+Recommended visual direction:
+
+```text
+Modern
+Clean
+Minimal
+Professional
+Utility-focused
+```
+
+The app should not look like an enterprise ERP.
+
+Suggested layout:
+
+```text
+Header
+   ↓
+Large Text Area
+   ↓
+Voice + Speed Controls
+   ↓
+Primary Playback Controls
+   ↓
+Small Status Area
+```
+
+---
+
+# 54. Header
+
+Header should contain:
+
+```text
+ReadAloud
+```
+
+Optional subtitle:
+
+```text
+Paste. Press Play. Listen.
+```
+
+Keep branding minimal.
+
+---
+
+# 55. Settings
+
+MVP settings should be minimal.
+
+Possible settings:
+
+```text
+Voice
+Language
+Speed
+Pitch
+```
+
+Do not create a large settings page.
+
+---
+
+# 56. Things NOT to Build
+
+Do NOT add these in MVP:
+
+* AI
+* Chatbot
+* Translation
+* Summarization
+* User accounts
+* Login
+* OTP
+* Database
+* Cloud storage
+* Text history
+* PDF upload
+* Word upload
+* File storage
+* Social sharing
+* Subscription system
+* Payment gateway
+* Complex analytics
+* Admin dashboard
+
+The MVP should remain focused.
+
+---
+
+# 57. Future Features
+
+These are NOT part of MVP but can be considered later:
+
+```text
+PDF text extraction
+DOCX text extraction
+Web page reader
+OCR
+Bookmarks
+Reading history
+User preferences
+Cloud sync
+Premium voices
+Offline packaged voices
+Mobile native app
+Browser extension
+```
+
+Important:
+
+Do not implement these unless separately approved.
+
+---
+
+# 58. Product Philosophy
+
+ReadAloud should follow this principle:
+
+> **One problem. One screen. One primary action.**
+
+User should understand the application within a few seconds.
+
+The application should not teach the user how to use it.
+
+---
+
+# 59. Development Deliverables
+
+Developer must deliver:
+
+### Source Code
+
+Complete source code.
+
+### Build
+
+Production-ready build.
+
+### README
+
+README should explain:
+
+* Project setup
+* Development commands
+* Production build
+* Browser support
+* TTS implementation
+* Known limitations
+
+### Environment
+
+If no API keys are required:
+
+```text
+No .env secrets should be required.
+```
+
+If environment configuration becomes necessary, document it clearly.
+
+---
+
+# 60. Deployment
+
+The application should be deployable to a static hosting platform.
+
+Suitable options include:
+
+```text
+Vercel
+Netlify
+Cloudflare Pages
+GitHub Pages
+```
+
+No backend server should be required for the MVP.
+
+---
+
+# 61. Acceptance Criteria
+
+The application will be considered complete only when:
+
+### Core
+
+* [ ] User can type text
+* [ ] User can paste text
+* [ ] User can press Play
+* [ ] Text is spoken
+* [ ] User can pause
+* [ ] User can resume
+* [ ] User can stop
+* [ ] User can clear text
+
+### Voice
+
+* [ ] Available voices are detected dynamically
+* [ ] User can select available voice
+* [ ] Speed can be changed
+* [ ] Multiple languages work where device voices support them
+
+### Long Text
+
+* [ ] Long text is chunked
+* [ ] Chunks play sequentially
+* [ ] App does not freeze
+* [ ] Words are not unnecessarily split
+
+### Privacy
+
+* [ ] No backend
+* [ ] No database
+* [ ] No text storage
+* [ ] No localStorage text
+* [ ] No sessionStorage text
+* [ ] No analytics containing text
+* [ ] No AI API
+* [ ] No external speech API
+
+### UX
+
+* [ ] Responsive
+* [ ] Mobile friendly
+* [ ] Desktop friendly
+* [ ] Accessible
+* [ ] Clear error messages
+
+---
+
+# 62. Definition of Done
+
+The project is DONE when:
+
+```text
+Open ReadAloud
+      ↓
+Paste any supported-language text
+      ↓
+Select voice if required
+      ↓
+Press Play
+      ↓
+Device reads the text aloud
+      ↓
+Pause/Resume/Stop works
+      ↓
+Clear removes the text
+      ↓
+Close/Refresh does not restore the text
+```
+
+and there is:
+
+```text
+NO AI
+NO DATABASE
+NO LOGIN
+NO BACKEND
+NO CLOUD TEXT STORAGE
+```
+
+for the MVP.
+
+---
+
+# 63. Important Developer Instruction
+
+Do not add features simply because they are technically possible.
+
+Prioritize:
+
+1. Reliable TTS
+2. Long-text handling
+3. Multi-language voice support
+4. Simple UX
+5. Privacy
+6. Mobile compatibility
+7. Performance
+
+The application should remain small, fast, private and easy to use.
+
+---
+
+# 64. Final Product Definition
+
+**ReadAloud is a privacy-first text-to-speech utility that allows users to paste or type text in any language supported by their device and listen to it aloud using the native TTS engine.**
+
+No AI.
+
+No account.
+
+No database.
+
+No cloud storage.
+
+No text history.
+
+Just:
+
+> **Paste → Play → Listen.**
