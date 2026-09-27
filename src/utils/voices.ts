@@ -135,7 +135,15 @@ const BASIC_HINTS = ['compact', 'espeak', 'eloquence', 'pico', 'legacy', 'roboti
 
 const QUALITY_RANK: Record<VoiceQuality, number> = { natural: 0, standard: 1, basic: 2 }
 
+/**
+ * On Android the platform engine reports each voice's own quality rating, which
+ * is far more reliable than reading the name. When that rating is present it is
+ * used as-is; otherwise the name is the only signal available.
+ */
 export function classifyVoiceQuality(voice: SpeechSynthesisVoice): VoiceQuality {
+  const reported = (voice as SpeechSynthesisVoice & { quality?: VoiceQuality }).quality
+  if (reported && QUALITY_RANK[reported] !== undefined) return reported
+
   const name = (voice.name || '').toLowerCase()
   // Checked before the basic list, because "Microsoft Swara Online (Natural)"
   // contains both "online" and nothing harmful, while some packs do mix words.

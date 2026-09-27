@@ -100,6 +100,11 @@ body {
   width: min(100% - 2rem, 60rem);
   margin-inline: auto;
   padding-block: clamp(1.5rem, 4vw, 3rem) clamp(2rem, 5vw, 3.5rem);
+  /* Keeps content clear of notches, rounded corners and gesture bars on
+     Android phones. The env() fallback is 0 on devices without cutouts, and
+     in desktop browsers, so the desktop layout is unchanged. */
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
   display: flex;
   flex-direction: column;
   gap: clamp(1.25rem, 3vw, 1.75rem);

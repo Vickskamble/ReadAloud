@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { SpeechService, type SpeakCallbacks } from '../services/speechService'
+import { createSpeechEngine } from '../services/createSpeechEngine'
+import type { SpeakCallbacks } from '../services/speechService'
 import { CHUNK_MAX_CHARS, MAX_TEXT_LENGTH } from '../utils/constants'
 import { chunkText } from '../utils/textChunker'
 import { AUTO_VOICE, pickBestVoice } from '../utils/voices'
@@ -64,9 +65,10 @@ export function useSpeechSynthesis({
   rate,
   pitch,
 }: UseSpeechSynthesisOptions): UseSpeechSynthesisResult {
-  // Reading window.speechSynthesis has no side effects, so the engine is
-  // created once per component and reused across StrictMode remounts.
-  const [service] = useState(() => new SpeechService())
+  // The engine is created once per component and reused across StrictMode
+  // remounts. On Android this is the platform text engine, elsewhere the
+  // browser's own; neither choice has side effects at construction time.
+  const [service] = useState(() => createSpeechEngine())
   const [supported] = useState(() => service.isSupported())
 
   const [status, setStatus] = useState<SpeechStatus>('idle')

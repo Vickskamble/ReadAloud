@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'node_modules'] },
+  // `android` holds the generated Capacitor project; its build output and the
+  // bundled native bridge are not our source and must not be linted.
+  { ignores: ['dist', 'coverage', 'node_modules', 'android'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
