@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 
 import { AppHeader } from './components/AppHeader'
+import { FallbackVoiceToggle } from './components/FallbackVoiceToggle'
 import { LiveCaption } from './components/LiveCaption'
+import { MissingVoiceDialog } from './components/MissingVoiceDialog'
 import { Notice } from './components/Notice'
 import { PitchControl } from './components/PitchControl'
 import { ProgressBar } from './components/ProgressBar'
@@ -41,11 +43,17 @@ export default function App() {
   // Marathi voice the device has, until the user picks one.
   const [chosenVoiceURI, setChosenVoiceURI] = useState<string>(AUTO_VOICE)
 
+  // Off by default. Reading text in a language the device has no voice for is
+  // a wrong pronunciation, not a rough one, so it is the user's explicit
+  // choice and never a silent default.
+  const [allowFallbackVoice, setAllowFallbackVoice] = useState(false)
+
   const speech = useSpeechSynthesis({
     text,
     voiceURI: chosenVoiceURI,
     rate,
     pitch,
+    allowFallbackVoice,
   })
   const stats = useMemo(() => getTextStats(text), [text])
 
@@ -112,6 +120,11 @@ export default function App() {
             <SpeedControl value={rate} onChange={setRate} disabled={controlsDisabled} />
             <PitchControl value={pitch} onChange={setPitch} disabled={controlsDisabled} />
           </div>
+          <FallbackVoiceToggle
+            checked={allowFallbackVoice}
+            onChange={setAllowFallbackVoice}
+            disabled={controlsDisabled}
+          />
         </section>
 
         <SpeechControls
@@ -136,7 +149,16 @@ export default function App() {
           </Notice>
         )}
 
-        {needsBetterVoice && !speech.hasNoVoices && !speech.message && (
+        {speech.hasNoPreferredVoice && !speech.message && !speech.missingVoice && (
+          <Notice>
+            This device has no Hindi or Marathi voice installed, so reading has been paused rather
+            than mispronouncing your text. Install one: <strong>Android</strong> Settings &rarr;
+            Accessibility &rarr; Text-to-speech output &rarr; install the Hindi (and Marathi) voice
+            data, then reopen the app.
+          </Notice>
+        )}
+
+        {needsBetterVoice && !speech.hasNoVoices && !speech.hasNoPreferredVoice && !speech.message && (
           <Notice>
             This voice sounds robotic. For speech that sounds like a person, install a natural
             voice pack: <strong>Windows</strong> Settings &rarr; Accessibility &rarr; Narrator
@@ -151,6 +173,14 @@ export default function App() {
           totalChunks={speech.totalChunks}
         />
       </main>
+
+      {speech.missingVoice && (
+        <MissingVoiceDialog
+          voice={speech.missingVoice}
+          onOpenSettings={speech.openVoiceSettings}
+          onDismiss={speech.dismissMissingVoice}
+        />
+      )}
     </div>
   )
 }

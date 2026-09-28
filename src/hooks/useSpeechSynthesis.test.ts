@@ -82,9 +82,19 @@ vi.mock('../services/speechService', () => ({
   }),
 }))
 
+/**
+ * A device with the voices the app expects. Playback is blocked when a
+ * language has no installed voice, so a test that expects speech to start
+ * needs a device that can actually speak the text.
+ */
+const DEVICE_VOICES: SpeechSynthesisVoice[] = [
+  createVoice({ voiceURI: 'v1' }),
+  createVoice({ voiceURI: 'hi-1', name: 'Swara', lang: 'hi-IN' }),
+]
+
 function setup(
   overrides: Partial<Parameters<typeof useSpeechSynthesis>[0]> = {},
-  voices: SpeechSynthesisVoice[] = [],
+  voices: SpeechSynthesisVoice[] = DEVICE_VOICES,
   supported = true,
 ) {
   instance = new MockSpeechService()

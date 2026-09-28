@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { createSpeechEngine } from '../services/createSpeechEngine'
 import type { SpeakCallbacks } from '../services/speechService'
 import { CHUNK_MAX_CHARS, MAX_TEXT_LENGTH } from '../utils/constants'
-import { chunkText } from '../utils/textChunker'
-import { AUTO_VOICE, pickBestVoice } from '../utils/voices'
+import { prepareForSpeech } from '../pronunciation/segments'
+import { validateSegments, type MissingVoice } from '../pronunciation/availability'
+import { AUTO_VOICE, isPreferredLanguage, pickBestVoice } from '../utils/voices'
 import {
+  EMPTY_TEXT_MESSAGE,
   getTextValidationError,
   TTS_UNAVAILABLE_MESSAGE,
   VOICE_UNAVAILABLE_MESSAGE,
@@ -19,6 +21,12 @@ export interface UseSpeechSynthesisOptions {
   voiceURI: string
   rate: number
   pitch: number
+  /**
+   * Off by default. When off, text in a language the device has no voice for is
+   * never read with a voice of a different language, because that is a wrong
+   * pronunciation rather than a degraded one.
+   */
+  allowFallbackVoice?: boolean
 }
 
 export interface UseSpeechSynthesisResult {
@@ -29,10 +37,27 @@ export interface UseSpeechSynthesisResult {
   voices: SpeechSynthesisVoice[]
   voicesLoading: boolean
   hasNoVoices: boolean
+  /**
+   * The device has speech engines, but none of them can read Hindi or Marathi.
+   * Reading this text anyway means an English voice pronouncing Devanagari,
+   * which is the usual cause of "the pronunciation is wrong".
+   */
+  hasNoPreferredVoice: boolean
   /** Voice the engine will actually speak with, including the automatic pick. */
   activeVoiceURI: string
   selectedVoice: SpeechSynthesisVoice | null
   message: string | null
+  /**
+   * Set when playback was blocked because a required language voice is not
+   * installed. Carries the wording for the dialog and the language to name.
+   */
+  missingVoice: MissingVoice | null
+  /** True when the user allowed reading with a voice of a different language. */
+  usingFallbackVoice: boolean
+  /** Attempts to open the system voice settings. Resolves false if impossible. */
+  openVoiceSettings: () => Promise<boolean>
+  /** Dismiss the missing-voice dialog. */
+  dismissMissingVoice: () => void
   chunkIndex: number
   totalChunks: number
   /** Text of the chunk being spoken right now, for the live caption. */
@@ -64,6 +89,7 @@ export function useSpeechSynthesis({
   voiceURI,
   rate,
   pitch,
+  allowFallbackVoice = false,
 }: UseSpeechSynthesisOptions): UseSpeechSynthesisResult {
   // The engine is created once per component and reused across StrictMode
   // remounts. On Android this is the platform text engine, elsewhere the
@@ -81,6 +107,9 @@ export function useSpeechSynthesis({
   const [totalChunks, setTotalChunks] = useState(0)
   const [currentChunkText, setCurrentChunkText] = useState('')
   const [activeWord, setActiveWord] = useState<{ start: number; length: number } | null>(null)
+  const [missingVoice, setMissingVoice] = useState<MissingVoice | null>(null)
+  const [usingFallbackVoice, setUsingFallbackVoice] = useState(false)
+  const allowFallback = allowFallbackVoice
   const [speechTick, setSpeechTick] = useState(0)
 
   // The UI only deals in voice identifiers; the engine object is resolved here
@@ -115,20 +144,21 @@ export function useSpeechSynthesis({
     service.updateSettings({ voice: selectedVoice, rate, pitch })
   }, [service, selectedVoice, rate, pitch])
 
-  // 0..1 through the whole text, weighted by chunk length so a long paragraph
+  // 0..1 through the whole text, weighted by segment length so a long paragraph
   // does not advance the bar as fast as a short one. Null until something has
-  // actually been spoken.
+  // actually been spoken. Measured over the spoken segments, so the bar and the
+  // caption always agree with what the engine is saying out loud.
   const progress = useMemo(() => {
     if (totalChunks === 0 || status === 'idle') return null
     if (status === 'completed') return 1
 
-    const chunks = chunkText(text, { maxChars: CHUNK_MAX_CHARS })
-    const totalChars = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+    const chunks = prepareForSpeech(text, { maxChars: CHUNK_MAX_CHARS })
+    const totalChars = chunks.reduce((sum, chunk) => sum + chunk.text.length, 0)
     if (totalChars === 0) return null
 
     const doneChars = chunks
       .slice(0, chunkIndex)
-      .reduce((sum, chunk) => sum + chunk.length, 0)
+      .reduce((sum, chunk) => sum + chunk.text.length, 0)
     const inChunk = activeWord
       ? Math.min(activeWord.start + activeWord.length, currentChunkText.length)
       : 0
@@ -167,10 +197,29 @@ export function useSpeechSynthesis({
       return
     }
 
-    const chunks = chunkText(text, { maxChars: CHUNK_MAX_CHARS })
-    setTotalChunks(chunks.length)
+    const segments = prepareForSpeech(text, { maxChars: CHUNK_MAX_CHARS })
+    if (segments.length === 0) {
+      setMessage(EMPTY_TEXT_MESSAGE)
+      return
+    }
+
+    // The gate the app must not do without: every language this text needs is
+    // checked against the device's real voice list before a single word is
+    // spoken. Reading Hindi with an English voice is a wrong pronunciation, so
+    // it is blocked unless the user has explicitly allowed a fallback.
+    const check = validateSegments(segments, voices, { allowFallback })
+    if (!check.ok) {
+      setStatus('idle')
+      setMissingVoice(check.missing[0])
+      setUsingFallbackVoice(false)
+      return
+    }
+
+    setTotalChunks(segments.length)
     setChunkIndex(0)
     setMessage(null)
+    setMissingVoice(null)
+    setUsingFallbackVoice(check.substituted.length > 0)
     setActiveWord(null)
 
     const callbacks: SpeakCallbacks = {
@@ -192,7 +241,7 @@ export function useSpeechSynthesis({
     }
 
     const started = service.speak(
-      { text, voice: selectedVoice, rate, pitch, chunkMaxChars: CHUNK_MAX_CHARS },
+      { text, voice: selectedVoice, rate, pitch, chunkMaxChars: CHUNK_MAX_CHARS, segments },
       callbacks,
     )
 
@@ -216,7 +265,11 @@ export function useSpeechSynthesis({
     service.stop()
     reset()
     setMessage(null)
+    setMissingVoice(null)
+    setUsingFallbackVoice(false)
   }
+
+  const openVoiceSettings = () => service.openVoiceSettings()
 
   return {
     status,
@@ -226,9 +279,17 @@ export function useSpeechSynthesis({
     voices,
     voicesLoading,
     hasNoVoices: !voicesLoading && voices.length === 0,
+    hasNoPreferredVoice:
+      !voicesLoading &&
+      voices.length > 0 &&
+      !voices.some((voice) => isPreferredLanguage(voice.lang)),
     activeVoiceURI,
     selectedVoice,
     message,
+    missingVoice,
+    usingFallbackVoice,
+    openVoiceSettings,
+    dismissMissingVoice: () => setMissingVoice(null),
     chunkIndex,
     totalChunks,
     currentChunkText,

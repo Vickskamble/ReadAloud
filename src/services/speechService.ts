@@ -7,6 +7,8 @@ import {
   VOICE_UNAVAILABLE_MESSAGE,
 } from '../utils/validation'
 import { chunkText } from '../utils/textChunker'
+import { findVoiceForLocale } from '../pronunciation/availability'
+import type { SpeechSegment } from '../pronunciation/types'
 
 /** How long to wait for the asynchronous `voiceschanged` event before giving up. */
 const VOICE_LOAD_TIMEOUT_MS = 1500
@@ -38,6 +40,12 @@ export interface SpeakCallbacks {
 export interface SpeakRequest extends SpeechSettings {
   text: string
   chunkMaxChars?: number
+  /**
+   * Pre-split language segments from the pronunciation pipeline. When present
+   * the engine reads these instead of re-chunking the raw text, so each segment
+   * can be spoken with the voice that matches its language.
+   */
+  segments?: SpeechSegment[]
 }
 
 export interface SpeechServiceDeps {
@@ -83,6 +91,7 @@ export class SpeechService {
   private callbacks: SpeakCallbacks = {}
 
   private chunks: string[] = []
+  private segments: SpeechSegment[] = []
   private index = 0
   private generation = 0
   private active = false
@@ -218,7 +227,9 @@ export class SpeechService {
   speak(request: SpeakRequest, callbacks: SpeakCallbacks = {}): boolean {
     if (!this.isSupported()) return false
 
-    const chunks = chunkText(request.text, { maxChars: request.chunkMaxChars })
+    const chunks = request.segments
+      ? request.segments.map((segment) => segment.text)
+      : chunkText(request.text, { maxChars: request.chunkMaxChars })
     if (chunks.length === 0) return false
 
     // A restart must wait for a task boundary, because Chrome silently drops a
@@ -230,6 +241,7 @@ export class SpeechService {
 
     const generation = this.generation
     this.chunks = chunks
+    this.segments = request.segments ?? []
     this.settings = {
       voice: request.voice,
       rate: request.rate,
@@ -297,6 +309,14 @@ export class SpeechService {
   }
 
   /**
+   * The browser has no API for opening voice settings, so this reports false
+   * and the app shows written instructions instead.
+   */
+  async openVoiceSettings(): Promise<boolean> {
+    return false
+  }
+
+  /**
    * Stops speech and clears pending timers, leaving the instance reusable.
    * Used when the owning UI goes away (including React StrictMode remounts,
    * where the same instance is re-attached immediately afterwards).
@@ -316,6 +336,7 @@ export class SpeechService {
     this.advancePending = false
     this.index = 0
     this.chunks = []
+    this.segments = []
     this.clearRestartTimer()
     this.stopKeepAlive()
     try {
@@ -361,10 +382,15 @@ export class SpeechService {
 
     const index = this.index
     const utterance = new this.Utterance(this.chunks[index])
-    utterance.voice = this.settings.voice
+    // A segment carries the language it was detected as. Speaking it with the
+    // user's default voice is what makes Devanagari sound wrong, so the voice
+    // is resolved per segment and only falls back when nothing matches.
+    const segment = this.segments[index]
+    const segmentVoice = segment ? findVoiceForLocale(this.getVoices(), segment.language) : null
+    utterance.voice = segmentVoice ?? this.settings.voice
     // The language has to be stated explicitly. Without it an engine may fall
     // back to its own default voice, which mispronounces Devanagari badly.
-    utterance.lang = this.settings.voice?.lang || ''
+    utterance.lang = segment?.language ?? this.settings.voice?.lang ?? ''
     utterance.rate = clamp(this.settings.rate, 0.1, 10, 1)
     utterance.pitch = clamp(this.settings.pitch, 0, 2, 1)
 

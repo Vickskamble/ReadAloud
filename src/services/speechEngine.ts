@@ -29,5 +29,11 @@ export interface SpeechEngine {
   stop(): void
   isSpeaking(): boolean
   isPaused(): boolean
+  /**
+   * Opens the system text-to-speech settings so a missing voice can be
+   * installed. Resolves false when the platform cannot open them, so the caller
+   * can show written instructions instead.
+   */
+  openVoiceSettings(): Promise<boolean>
   release(): void
 }

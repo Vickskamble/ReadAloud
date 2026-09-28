@@ -1,0 +1,1121 @@
+# READALOUD — VOICE PRONUNCIATION IMPROVEMENT
+
+## Complete Development Prompt
+
+You are working on the existing **ReadAloud** application.
+
+Your task is to improve the **voice pronunciation and text-to-speech reading system**.
+
+The app's purpose is simple:
+
+> User pastes any message/text → app reads it aloud with the most natural pronunciation possible.
+
+Supported text can contain:
+
+* English
+* Hindi
+* Hinglish
+* Hindi + English mixed text
+* Numbers
+* Dates
+* Time
+* Currency
+* Abbreviations
+* Names
+* Technical words
+* URLs
+* Email addresses
+* Emojis
+* Punctuation
+
+---
+
+# 1. IMPORTANT PRODUCT RULES
+
+## DO NOT use AI
+
+This pronunciation system must NOT use:
+
+* OpenAI
+* Gemini
+* Claude
+* ChatGPT API
+* Any generative AI API
+* Any external AI pronunciation API
+* Any cloud-based AI language detection
+
+Use only:
+
+* Local text processing
+* Unicode/script detection
+* Local dictionaries
+* Rule-based pronunciation processing
+* Native/device Text-to-Speech
+* Offline/local resources wherever available
+
+---
+
+# 2. PRIVACY
+
+The user's pasted text is private.
+
+NEVER:
+
+* Upload text to a server
+* Store the actual message permanently
+* Send text to analytics
+* Send text to crash reporting
+* Send text to Firebase logs
+* Send text to external APIs
+* Store text in a database
+
+Text should exist only during the active reading session.
+
+When the user clears the text or the session ends, temporary text data should be removed.
+
+---
+
+# 3. FIRST INSPECT THE EXISTING PROJECT
+
+Before changing anything:
+
+1. Inspect the complete existing project structure.
+2. Identify the current text input implementation.
+3. Identify the current TTS implementation.
+4. Identify the current Play button.
+5. Identify Pause/Resume/Stop functionality.
+6. Identify the current state management.
+7. Identify existing dependencies.
+8. Identify how text is currently processed.
+9. Identify whether any existing pronunciation logic already exists.
+
+DO NOT rewrite the application.
+
+DO NOT replace working architecture unnecessarily.
+
+DO NOT modify unrelated screens or features.
+
+Integrate the new pronunciation system into the existing implementation.
+
+---
+
+# 4. REQUIRED PROCESSING PIPELINE
+
+Implement the following pipeline:
+
+USER TEXT
+
+↓
+
+TEXT CLEANER
+
+↓
+
+SCRIPT / LANGUAGE DETECTOR
+
+↓
+
+SENTENCE SPLITTER
+
+↓
+
+TOKENIZER
+
+↓
+
+TOKEN CLASSIFIER
+
+↓
+
+PRONUNCIATION NORMALIZER
+
+↓
+
+LANGUAGE SEGMENT BUILDER
+
+↓
+
+TTS QUEUE
+
+↓
+
+DEVICE TTS
+
+↓
+
+VOICE OUTPUT
+
+---
+
+# 5. SCRIPT DETECTION
+
+Detect whether the text contains:
+
+### Devanagari / Hindi
+
+Example:
+
+आज मुझे ऑफिस जाना है।
+
+Use Hindi TTS where available.
+
+### English
+
+Example:
+
+I am going to the office.
+
+Use English TTS.
+
+### Roman Hindi / Hinglish
+
+Example:
+
+Aaj mujhe office jaana hai.
+
+Detect this as mixed/roman Hindi instead of assuming that every Roman-script word is English.
+
+### Mixed Language
+
+Example:
+
+Aaj meeting 5 PM par hai.
+
+Detect individual language segments.
+
+---
+
+# 6. TOKEN CLASSIFICATION
+
+Each token should be classified locally as one of:
+
+* HINDI_DEVANAGARI
+* HINDI_ROMAN
+* ENGLISH
+* NUMBER
+* DATE
+* TIME
+* CURRENCY
+* EMAIL
+* URL
+* ACRONYM
+* EMOJI
+* PUNCTUATION
+* PROPER_NAME
+* TECHNICAL_WORD
+* UNKNOWN
+
+The classifier must be deterministic and local.
+
+---
+
+# 7. HINGLISH SUPPORT — MOST IMPORTANT
+
+The app must specifically handle Roman Hindi/Hinglish.
+
+Examples:
+
+Aaj mujhe office jaana hai.
+
+Mujhe report send kar dena.
+
+Kal meeting hai.
+
+Aap mujhe message kar dena.
+
+Tum kahan ja rahe ho?
+
+Mujhe ye file download karni hai.
+
+The system must NOT simply send the entire sentence to an English TTS engine.
+
+It should identify Hindi-origin Roman words and English words.
+
+Example:
+
+"Aaj mujhe office jaana hai."
+
+Internally:
+
+Aaj → HINDI_ROMAN
+
+mujhe → HINDI_ROMAN
+
+office → ENGLISH
+
+jaana → HINDI_ROMAN
+
+hai → HINDI_ROMAN
+
+---
+
+# 8. LOCAL HINGLISH DICTIONARY
+
+Create an extensible local dictionary containing common Roman Hindi words.
+
+Initial dictionary should include at least:
+
+aaj
+kal
+abhi
+ab
+mujhe
+mujhse
+mujhko
+tum
+tumhe
+tumko
+tumhara
+tumhari
+mera
+meri
+mere
+hamara
+hamari
+hum
+aap
+aapko
+aapka
+aapki
+kya
+kyu
+kyon
+kaise
+kab
+kahan
+kaha
+hai
+hain
+tha
+thi
+the
+hoga
+hogi
+honge
+kar
+karo
+karna
+karte
+kiya
+kiye
+ja
+jao
+jana
+jaana
+jaana
+aana
+aao
+aaya
+aaye
+gaya
+gayi
+gaye
+raha
+rahi
+rahe
+chahiye
+nahi
+nahin
+haan
+han
+acha
+achha
+bahut
+thoda
+zyada
+abhi
+phir
+lekin
+aur
+ya
+bhi
+se
+ko
+ka
+ki
+ke
+mein
+me
+par
+pe
+liye
+liye
+dena
+do
+diya
+di
+lo
+lena
+bolo
+batao
+samajh
+samjha
+samjho
+dikhao
+bhejo
+bhejna
+rakhna
+nikalna
+aana
+jana
+
+The dictionary must be expandable later.
+
+---
+
+# 9. ROMAN HINDI PRONUNCIATION RULES
+
+Implement local pronunciation rules for common Roman Hindi patterns.
+
+Examples:
+
+aa → long Hindi "aa" sound
+
+ee / ii → long "ee" sound
+
+oo / uu → long "oo" sound
+
+ai → "ai" sound
+
+au → "au" sound
+
+kh → ख
+
+gh → घ
+
+ch → च
+
+chh → छ
+
+jh → झ
+
+th → थ
+
+dh → ध
+
+ph → फ
+
+bh → भ
+
+sh → श
+
+IMPORTANT:
+
+Do NOT blindly replace characters.
+
+English words must not accidentally become Hindi words.
+
+---
+
+# 10. ENGLISH WORD DICTIONARY
+
+Maintain a local English/common technical vocabulary.
+
+Initial examples:
+
+office
+meeting
+project
+software
+company
+mobile
+phone
+computer
+website
+email
+message
+call
+video
+file
+report
+system
+app
+application
+login
+password
+dashboard
+download
+upload
+internet
+online
+offline
+server
+database
+account
+profile
+user
+admin
+employee
+manager
+client
+customer
+business
+payment
+invoice
+billing
+energy
+maintenance
+automation
+software
+hardware
+
+This dictionary must be expandable.
+
+---
+
+# 11. IMPORTANT LANGUAGE SEGMENTATION RULE
+
+Do NOT switch TTS language for every individual word.
+
+That will create robotic speech.
+
+Example:
+
+Aaj mujhe office jaana hai.
+
+Do NOT create:
+
+Aaj → Hindi TTS
+
+mujhe → Hindi TTS
+
+office → English TTS
+
+jaana → Hindi TTS
+
+hai → Hindi TTS
+
+Instead group consecutive compatible words.
+
+Possible structure:
+
+Segment 1:
+Aaj mujhe
+
+Segment 2:
+office
+
+Segment 3:
+jaana hai
+
+Then process these segments sequentially.
+
+The segmentation algorithm should minimize unnecessary language switching.
+
+---
+
+# 12. TTS QUEUE
+
+Create a sequential speech queue.
+
+Example:
+
+Segment 1
+↓
+Segment 2
+↓
+Segment 3
+↓
+Segment 4
+
+The next segment must start only after the previous segment finishes.
+
+Never allow multiple TTS calls to overlap.
+
+---
+
+# 13. TTS CONTROLS
+
+Integrate with the existing UI.
+
+Required functionality:
+
+* Play
+* Pause
+* Resume
+* Stop
+* Clear
+* Speech Speed
+* Pitch
+* Voice selection if supported
+
+Do not redesign the application unnecessarily.
+
+---
+
+# 14. SPEECH SPEED
+
+Provide adjustable speech speed.
+
+Suggested default:
+
+1.0x
+
+Allow the user to increase/decrease speed.
+
+Do not hardcode the speed if the existing app already has a setting.
+
+---
+
+# 15. PITCH
+
+Allow pitch adjustment if supported by the native TTS engine.
+
+Default:
+
+1.0
+
+---
+
+# 16. HINDI VOICE
+
+For Hindi text or Hindi pronunciation segments:
+
+Prefer the device's available Hindi/India voice.
+
+Preferred locale:
+
+hi-IN
+
+If unavailable, gracefully use the best available local fallback.
+
+---
+
+# 17. ENGLISH VOICE
+
+For English segments:
+
+Prefer:
+
+en-IN
+
+If unavailable, use an available English voice.
+
+Do not crash if the preferred voice is unavailable.
+
+---
+
+# 18. NUMBERS
+
+Numbers must be normalized before TTS.
+
+Example:
+
+5000
+
+should not be spoken in an awkward digit-by-digit manner.
+
+Handle:
+
+* integers
+* decimals
+* percentages
+* phone numbers
+* quantities
+* measurements
+
+Examples:
+
+5000
+
+25%
+
+220 V
+
+10 kg
+
+15.5 km
+
+---
+
+# 19. CURRENCY
+
+Handle:
+
+₹5000
+
+₹5,000
+
+₹1,25,000
+
+$100
+
+€50
+
+Convert them into natural spoken representations before sending them to TTS.
+
+---
+
+# 20. TIME
+
+Handle:
+
+5 PM
+
+5:30 PM
+
+10 AM
+
+10:45 AM
+
+The system should speak them naturally.
+
+---
+
+# 21. DATE
+
+Handle formats such as:
+
+28/09/2026
+
+28-09-2026
+
+28 September 2026
+
+September 28, 2026
+
+Normalize them before TTS where necessary.
+
+---
+
+# 22. EMAIL
+
+Example:
+
+[contact@brilliants.in](mailto:contact@brilliants.in)
+
+Do not let the native TTS pronounce the raw symbols awkwardly.
+
+Normalize:
+
+@ → at
+
+. → dot
+
+while preserving understandable pronunciation.
+
+---
+
+# 23. URL
+
+Example:
+
+https://brilliants.in
+
+Do not unnecessarily read every URL character.
+
+Convert the URL into a readable spoken form.
+
+For example:
+
+https
+
+colon slash slash
+
+should not be spoken unless required.
+
+Prefer meaningful domain pronunciation.
+
+---
+
+# 24. EMOJI
+
+Default behavior:
+
+Do NOT speak emoji names.
+
+Example:
+
+Hello 😊
+
+should normally speak:
+
+Hello
+
+The emoji should be ignored.
+
+Do not send emoji Unicode directly to TTS if it causes unwanted spoken output.
+
+---
+
+# 25. PUNCTUATION
+
+Handle:
+
+.
+
+,
+
+?
+
+!
+
+:
+
+;
+
+*
+
+—
+
+(
+
+)
+
+"
+
+'
+
+naturally.
+
+Do not literally speak punctuation names.
+
+Question marks and exclamation marks may influence sentence boundaries/intonation where the native TTS engine supports it.
+
+---
+
+# 26. ABBREVIATIONS
+
+Create a local abbreviation dictionary.
+
+Examples:
+
+CEO
+CFO
+CTO
+HR
+ERP
+CRM
+API
+GST
+PF
+TDS
+PM
+AM
+MVP
+SaaS
+IoT
+AI
+
+Handle them using appropriate letter-by-letter or known-word pronunciation.
+
+Do not blindly treat every uppercase word as an acronym.
+
+---
+
+# 27. TECHNICAL WORDS
+
+Support technical/business terms such as:
+
+ERP
+CRM
+SaaS
+IoT
+API
+HRMS
+MVP
+Dashboard
+Automation
+Software
+Hardware
+Database
+Server
+
+These should not accidentally be converted into Hindi pronunciation merely because they appear inside a Hinglish sentence.
+
+---
+
+# 28. PROPER NAMES
+
+Names may not follow normal pronunciation rules.
+
+Create an optional local pronunciation dictionary.
+
+Example:
+
+Brilliants
+PowerEMS
+IronBook
+
+The system must support a configurable pronunciation mapping.
+
+Example concept:
+
+Original:
+PowerEMS
+
+Spoken form:
+Power EMS
+
+This should be configurable locally.
+
+---
+
+# 29. UNKNOWN WORDS
+
+If a word is not found in any dictionary:
+
+Do NOT crash.
+
+Do NOT remove it.
+
+Use a safe fallback pronunciation strategy.
+
+Priority:
+
+1. User pronunciation dictionary
+2. Known English dictionary
+3. Known Hinglish dictionary
+4. Rule-based classification
+5. Native TTS fallback
+
+---
+
+# 30. PRONUNCIATION PRIORITY
+
+Use this priority order:
+
+1. Explicit user pronunciation override
+2. Proper-name/technical pronunciation dictionary
+3. Exact English dictionary match
+4. Exact Hinglish dictionary match
+5. Script detection
+6. Contextual classification
+7. Rule-based pronunciation
+8. Native TTS fallback
+
+---
+
+# 31. USER PRONUNCIATION OVERRIDE
+
+Design the pronunciation system so a future setting can allow:
+
+Original word:
+PowerEMS
+
+Speak as:
+Power EMS
+
+Another example:
+
+Original:
+Brilliants
+
+Speak as:
+custom configured pronunciation
+
+This dictionary must contain only pronunciation mappings, not user message history.
+
+---
+
+# 32. PRIVACY & MEMORY
+
+Do not persist the actual pasted message.
+
+Temporary variables are allowed during the current reading session.
+
+When the user presses CLEAR:
+
+Clear:
+
+* raw text
+* token list
+* processed segments
+* TTS queue
+* temporary pronunciation state
+
+---
+
+# 33. NO CLOUD PROCESSING
+
+The following must NOT happen:
+
+User text
+→ server
+→ language detection
+→ server pronunciation
+→ TTS
+
+Everything should happen locally.
+
+Required:
+
+User text
+→ local processing
+→ device TTS
+
+---
+
+# 34. ERROR HANDLING
+
+If a voice is unavailable:
+
+Show a simple useful message.
+
+Example:
+
+"Selected voice is not available on this device."
+
+Then use an available fallback where possible.
+
+Never crash the app.
+
+---
+
+# 35. TEST CASES
+
+The developer MUST test these examples.
+
+### Test 1
+
+Aaj mujhe office jaana hai.
+
+### Test 2
+
+I am going to the office.
+
+### Test 3
+
+आज मुझे ऑफिस जाना है।
+
+### Test 4
+
+Aaj 5 PM par meeting hai.
+
+### Test 5
+
+Please send me the report.
+
+### Test 6
+
+Mujhe report send kar dena.
+
+### Test 7
+
+Meeting 28/09/2026 ko hai.
+
+### Test 8
+
+Contact us at [contact@brilliants.in](mailto:contact@brilliants.in)
+
+### Test 9
+
+Visit https://brilliants.in
+
+### Test 10
+
+ERP system ka login open karo.
+
+### Test 11
+
+₹5,000 ka payment received hai.
+
+### Test 12
+
+Hello 😊 how are you?
+
+### Test 13
+
+Kal office mein maintenance meeting hai.
+
+### Test 14
+
+Mujhe ye file download karni hai.
+
+### Test 15
+
+Aap mujhe WhatsApp par message kar dena.
+
+---
+
+# 36. QUALITY CHECK
+
+For every test case check:
+
+* Is the language detected correctly?
+* Are Hindi words spoken as Hindi?
+* Are English words spoken as English?
+* Does Hinglish sound natural?
+* Are numbers understandable?
+* Are dates understandable?
+* Are times understandable?
+* Are abbreviations understandable?
+* Are URLs readable?
+* Are emails readable?
+* Are emojis ignored?
+* Is the speech continuous?
+* Are there unnatural pauses?
+* Is there unnecessary language switching?
+* Does Play work?
+* Does Pause work?
+* Does Resume work?
+* Does Stop work?
+* Does Clear work?
+
+---
+
+# 37. DO NOT CLAIM 100% PRONUNCIATION ACCURACY
+
+This is a rule-based offline pronunciation system.
+
+It should be designed for continuous improvement.
+
+When a pronunciation problem is found:
+
+1. Identify the word.
+2. Identify why it was classified incorrectly.
+3. Fix the relevant rule/dictionary.
+4. Add a regression test.
+5. Re-test existing cases.
+
+Do not fix one word by breaking other words.
+
+---
+
+# 38. DEVELOPMENT SAFETY
+
+Before modifying files:
+
+* inspect current architecture
+* inspect existing TTS implementation
+* inspect current UI
+* inspect current state management
+* inspect dependencies
+
+Then make the smallest required changes.
+
+Do NOT:
+
+* rewrite the whole application
+* change unrelated screens
+* change authentication
+* add unnecessary backend
+* add unnecessary database
+* add AI APIs
+* add cloud processing
+* introduce unnecessary dependencies
+
+---
+
+# 39. FINAL DELIVERABLE
+
+After implementation, provide:
+
+1. Files changed
+2. What was changed in each file
+3. New dependencies, if any
+4. Pronunciation engine architecture
+5. Supported languages
+6. Supported text types
+7. Known limitations
+8. Test results
+9. Any device/TTS voice requirements
+10. Any remaining pronunciation issues
+
+The existing ReadAloud app must continue working after these changes.
+
+The primary objective is:
+
+> **Paste text → detect language/mixed language → normalize pronunciation locally → speak naturally using device TTS.**
+
+Keep the implementation simple, reliable, offline-first, privacy-first, and maintainable.

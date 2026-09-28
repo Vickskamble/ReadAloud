@@ -1,6 +1,7 @@
 import { registerPlugin } from '@capacitor/core'
+import { prepareForSpeech } from '../pronunciation/segments'
 import { SPEECH_FAILED_MESSAGE, VOICE_UNAVAILABLE_MESSAGE } from '../utils/validation'
-import { chunkText } from '../utils/textChunker'
+import { CHUNK_MAX_CHARS } from '../utils/constants'
 import type { VoiceQuality } from '../utils/voices'
 import type {
   SpeakCallbacks,
@@ -34,15 +35,16 @@ interface NativeChunkStart {
 interface ReadAloudTtsBridge {
   voices(): Promise<{ voices: NativeVoice[] }>
   speak(options: {
-    chunks: string[]
+    /** One entry per segment, each with the language it was detected as. */
+    segments: { text: string; lang: string }[]
     rate: number
     pitch: number
     voiceId: string
-    lang: string
   }): Promise<void>
   pause(): Promise<void>
   resume(): Promise<void>
   stop(): Promise<void>
+  openVoiceSettings(): Promise<{ opened: boolean }>
   addListener(event: 'ttsReady', handler: () => void): Promise<{ remove: () => void }>
   addListener(
     event: 'ttsChunkStart',
@@ -108,6 +110,8 @@ export class NativeSpeechService implements SpeechEngine {
   private voices: SpeechSynthesisVoice[] = []
   private voiceListeners = new Set<(voices: SpeechSynthesisVoice[]) => void>()
   private pluginListeners: { remove: () => void }[] = []
+  private readyWatcher: { remove: () => void } | null = null
+  private released = false
 
   private active = false
   private paused = false
@@ -129,6 +133,27 @@ export class NativeSpeechService implements SpeechEngine {
     return this.voices
   }
 
+  /**
+   * The platform engine connects asynchronously, so a voice list fetched
+   * moments after launch can be empty. Re-reading it once the engine reports
+   * ready keeps the picker populated without the user having to reopen the app.
+   */
+  private watchReadiness(): void {
+    if (this.readyWatcher) return
+    void Bridge.addListener('ttsReady', () => {
+      if (this.voices.length > 0) return
+      void this.loadVoices()
+    }).then((handle) => {
+      // release() may already have run while the listener was registering.
+      if (this.released) handle.remove()
+      else this.readyWatcher = handle
+    })
+  }
+
+  constructor() {
+    this.watchReadiness()
+  }
+
   subscribeVoices(listener: (voices: SpeechSynthesisVoice[]) => void): () => void {
     this.voiceListeners.add(listener)
     if (this.voices.length > 0) listener(this.voices)
@@ -146,8 +171,13 @@ export class NativeSpeechService implements SpeechEngine {
   }
 
   speak(request: SpeakRequest, callbacks: SpeakCallbacks = {}): boolean {
-    const chunks = chunkText(request.text, { maxChars: request.chunkMaxChars })
-    if (chunks.length === 0) return false
+    // The caller normally supplies segments already, but never fall back to
+    // plain chunking labelled English: that would label Hindi text as English
+    // and have the engine read it with the wrong voice.
+    const segments = request.segments ?? prepareForSpeech(request.text, {
+      maxChars: request.chunkMaxChars ?? CHUNK_MAX_CHARS,
+    })
+    if (segments.length === 0) return false
 
     this.settings = { voice: request.voice, rate: request.rate, pitch: request.pitch }
     this.callbacks = callbacks
@@ -158,11 +188,10 @@ export class NativeSpeechService implements SpeechEngine {
 
     void this.listen(session)
     void Bridge.speak({
-      chunks,
+      segments: segments.map((segment) => ({ text: segment.text, lang: segment.language })),
       rate: request.rate,
       pitch: request.pitch,
       voiceId: request.voice?.voiceURI ?? '',
-      lang: request.voice?.lang ?? '',
     }).catch((error: unknown) => {
       if (session !== this.session) return
       this.active = false
@@ -201,10 +230,27 @@ export class NativeSpeechService implements SpeechEngine {
     return this.paused
   }
 
+  /**
+   * Opens the system text-to-speech settings so the user can install the voice
+   * the app just reported as missing. Returns false when the device has no
+   * settings screen to open, so the caller can show instructions instead.
+   */
+  async openVoiceSettings(): Promise<boolean> {
+    try {
+      const result = await Bridge.openVoiceSettings()
+      return result.opened === true
+    } catch {
+      return false
+    }
+  }
+
   release(): void {
+    this.released = true
     this.cancel()
     for (const listener of this.pluginListeners) listener.remove()
     this.pluginListeners = []
+    this.readyWatcher?.remove()
+    this.readyWatcher = null
     this.voiceListeners.clear()
   }
 

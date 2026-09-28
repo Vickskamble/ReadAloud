@@ -17,7 +17,19 @@ vi.mock('./services/speechService', () => ({
 
 const SAMPLE = 'Hello bhai, kya haal hai?'
 
-async function renderApp(voices: SpeechSynthesisVoice[] = []) {
+/**
+ * A device that has the voices the app is built for. Playback is blocked when
+ * a language has no installed voice, so tests that expect reading to start
+ * need a device that can actually speak the sample text.
+ */
+const DEVICE_VOICES: SpeechSynthesisVoice[] = [
+  createVoice({ voiceURI: 'hi-1', name: 'Swara (Natural)', lang: 'hi-IN' }),
+  createVoice({ voiceURI: 'mr-1', name: 'Mangal (Natural)', lang: 'mr-IN' }),
+  createVoice({ voiceURI: 'en-in', name: 'Neerja', lang: 'en-IN' }),
+  createVoice({ voiceURI: 'en-us', name: 'Aria', lang: 'en-US' }),
+]
+
+async function renderApp(voices: SpeechSynthesisVoice[] = DEVICE_VOICES) {
   instance = new MockSpeechService()
   instance.availableVoices = voices
   const user = userEvent.setup()
@@ -191,6 +203,7 @@ describe('ReadAloud app', () => {
   it('lets the user fall back to the device default voice on purpose', async () => {
     const { user } = await renderApp([
       createVoice({ voiceURI: 'hi-1', name: 'Google Hindi', lang: 'hi-IN' }),
+      createVoice({ voiceURI: 'en-in', name: 'Neerja', lang: 'en-IN' }),
     ])
     await typeText(user, SAMPLE)
     await user.selectOptions(screen.getByLabelText('Voice'), '')
@@ -219,6 +232,77 @@ describe('ReadAloud app', () => {
       screen.getByText(/No text-to-speech voices were found on this device/),
     ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('missing language voice', () => {
+    /** A device with English but no Hindi or Marathi voice. */
+    const ENGLISH_ONLY = [
+      createVoice({ voiceURI: 'en-in', name: 'Neerja', lang: 'en-IN' }),
+      createVoice({ voiceURI: 'en-us', name: 'Aria', lang: 'en-US' }),
+    ]
+
+    it('blocks reading Hindi rather than mispronouncing it in English', async () => {
+      const { user } = await renderApp(ENGLISH_ONLY)
+      await typeText(user, 'नमस्ते, आज बारिश होगी')
+
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      expect(instance.lastRequest).toBeNull()
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Hindi Voice Not Available')
+    })
+
+    it('names Marathi when the text is Marathi', async () => {
+      const { user } = await renderApp(ENGLISH_ONLY)
+      await typeText(user, 'मला आज ऑफिसला जायचे आहे')
+
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Marathi Voice Not Available')
+    })
+
+    it('offers a way to open voice settings and a way out', async () => {
+      const { user } = await renderApp(ENGLISH_ONLY)
+      await typeText(user, 'नमस्ते')
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      await user.click(screen.getByRole('button', { name: 'Open Voice Settings' }))
+      expect(instance.openVoiceSettingsCalls).toBeGreaterThan(0)
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('still reads pure English, since the device can speak it', async () => {
+      const { user } = await renderApp(ENGLISH_ONLY)
+      await typeText(user, 'Please send the report today')
+
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      expect(instance.lastRequest?.segments?.length).toBeGreaterThan(0)
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('reads with another language only after the user opts in', async () => {
+      const { user } = await renderApp(ENGLISH_ONLY)
+      await typeText(user, 'नमस्ते, आज बारिश होगी')
+
+      await user.click(screen.getByTestId('fallback-voice-toggle'))
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      expect(instance.lastRequest?.segments?.length).toBeGreaterThan(0)
+    })
+
+    it('falls back from en-IN to en-US without asking', async () => {
+      const { user } = await renderApp([
+        createVoice({ voiceURI: 'en-us', name: 'Aria', lang: 'en-US' }),
+      ])
+      await typeText(user, 'Please send the report today')
+
+      await user.click(screen.getByRole('button', { name: /Play/ }))
+
+      expect(instance.lastRequest?.segments?.length).toBeGreaterThan(0)
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
   })
 
   it('reports missing engine support clearly', async () => {

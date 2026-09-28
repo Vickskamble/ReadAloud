@@ -16,6 +16,9 @@ export class MockSpeechService {
   releaseCount = 0
   updateSettingsCount = 0
   lastSettings: unknown = null
+  openVoiceSettingsCalls = 0
+  /** Set false to model a platform that cannot open voice settings. */
+  canOpenVoiceSettings = true
 
   private listener: ((voices: SpeechSynthesisVoice[]) => void) | null = null
 
@@ -66,6 +69,11 @@ export class MockSpeechService {
 
   stop(): void {
     this.stopCount += 1
+  }
+
+  openVoiceSettings(): Promise<boolean> {
+    this.openVoiceSettingsCalls += 1
+    return Promise.resolve(this.canOpenVoiceSettings)
   }
 
   release(): void {

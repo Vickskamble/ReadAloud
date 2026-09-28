@@ -1,5 +1,7 @@
 package com.vickskamble.readaloud.tts
 
+import android.content.Intent
+import android.media.AudioAttributes
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -30,6 +32,9 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Nothing is persisted: all state is in memory and dropped on stop.
  */
+/** One unit of speech: the text plus the language it was detected as. */
+private class Segment(val text: String, val lang: String)
+
 @CapacitorPlugin(name = "ReadAloudTts")
 class ReadAloudTtsPlugin : Plugin() {
 
@@ -37,14 +42,20 @@ class ReadAloudTtsPlugin : Plugin() {
     private var ready = false
     private var initError: String? = null
 
-    private var chunks: List<String> = emptyList()
+    /**
+     * Calls that arrived before the engine finished initialising. The text
+     * engine connects asynchronously, so without this the app would ask for its
+     * voice list before any voice existed and show the picker as empty.
+     */
+    private val pendingCalls = mutableListOf<Pair<PluginCall, (TextToSpeech) -> Unit>>()
+
+    private var segments: List<Segment> = emptyList()
     private var index = 0
     private val session = AtomicLong(0)
 
     private var rate = 1.0f
     private var pitch = 1.0f
-    private var voice: Voice? = null
-    private var voiceId: String? = null
+        private var voiceId: String? = null
 
     private var active = false
     private var paused = false
@@ -54,20 +65,54 @@ class ReadAloudTtsPlugin : Plugin() {
 
     private fun engine(): TextToSpeech? = tts?.takeIf { ready }
 
+    /**
+     * Runs [action] now if the engine is up, otherwise once it finishes
+     * starting up. Rejects straight away only if initialisation already failed.
+     */
+    private fun whenReady(call: PluginCall, action: (TextToSpeech) -> Unit) {
+        val instance = engine()
+        if (instance != null) {
+            action(instance)
+            return
+        }
+        if (initError != null) {
+            call.reject(initError!!)
+            return
+        }
+        pendingCalls.add(call to action)
+    }
+
+    private fun flushPending() {
+        if (pendingCalls.isEmpty()) return
+        val waiting = pendingCalls.toList()
+        pendingCalls.clear()
+        val instance = engine() ?: return
+        for ((call, action) in waiting) action(instance)
+    }
+
     override fun load() {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val instance = tts
                 if (instance != null) {
                     instance.setOnUtteranceProgressListener(listener())
+                    // Routes audio as assistive speech, so the read comes out of
+                    // the media stream at a sensible volume on every device.
+                    instance.setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
                     ready = true
                     initError = null
                 }
             } else {
-                initError = "Text engine returned status $status"
+                initError = "No text-to-speech engine is available on this device"
                 ready = false
             }
             notifyListeners("ttsReady", readyState())
+            flushPending()
         }
     }
 
@@ -88,28 +133,24 @@ class ReadAloudTtsPlugin : Plugin() {
 
     @PluginMethod
     fun voices(call: PluginCall) {
-        val instance = engine()
-        if (instance == null) {
-            call.reject(initError ?: "Text-to-speech engine is not ready")
-            return
-        }
+        whenReady(call) { instance ->
+            val result = JSArray()
+            for (candidate in instance.voices ?: emptySet()) {
+                val entry = JSObject()
+                entry.put("id", candidate.name)
+                entry.put("name", candidate.name)
+                entry.put("lang", candidate.locale.toLanguageTag())
+                // Drives the existing "on-device first, network last" privacy ranking.
+                entry.put("local", !candidate.isNetworkConnectionRequired)
+                entry.put("quality", qualityLabel(candidate.quality))
+                result.put(entry)
+            }
 
-        val result = JSArray()
-        for (candidate in instance.voices ?: emptySet()) {
-            val entry = JSObject()
-            entry.put("id", candidate.name)
-            entry.put("name", candidate.name)
-            entry.put("lang", candidate.locale.toLanguageTag())
-            // Drives the existing "on-device first, network last" privacy ranking.
-            entry.put("local", !candidate.isNetworkConnectionRequired)
-            entry.put("quality", qualityLabel(candidate.quality))
-            result.put(entry)
+            val response = JSObject()
+            response.put("voices", result)
+            response.put("ready", true)
+            call.resolve(response)
         }
-
-        val response = JSObject()
-        response.put("voices", result)
-        response.put("ready", true)
-        call.resolve(response)
     }
 
     /**
@@ -123,76 +164,151 @@ class ReadAloudTtsPlugin : Plugin() {
         else -> "basic"
     }
 
-    private fun resolveVoice(id: String?, lang: String?): Voice? {
+    /**
+     * Picks the voice for one segment.
+     *
+     * The segment's language decides, not the user's picker: that is the whole
+     * point of segmentation, and it is what stops an English voice from being
+     * used to read Devanagari. An explicit pick still wins, but only when it
+     * speaks the same language as the segment being read.
+     */
+    private fun resolveVoice(segmentLang: String?): Voice? {
         val instance = engine() ?: return null
-        if (id != null) {
-            instance.voices?.firstOrNull { it.name == id }?.let { return it }
-        }
-        val tag = lang?.takeIf { it.isNotBlank() } ?: return null
+        val tag = segmentLang?.takeIf { it.isNotBlank() } ?: return null
         val wanted = Locale.forLanguageTag(tag)
-        val matching = instance.voices?.filter { it.locale.language == wanted.language } ?: emptyList()
-        return matching.maxByOrNull { it.quality }
+        val voices = instance.voices ?: return null
+
+        val picked = voiceId?.let { id -> voices.firstOrNull { it.name == id } }
+        if (picked != null && picked.locale.language == wanted.language) return picked
+
+        // Exact regional match first, so hi-IN is preferred over another hi.
+        val exact = voices.filter { it.locale.toLanguageTag().equals(tag, ignoreCase = true) }
+        exact.maxByOrNull { it.quality }?.let { return it }
+
+        return voices.filter { it.locale.language == wanted.language }.maxByOrNull { it.quality }
     }
 
     /* ---------------------------------------------------------------- speaking */
 
     /**
-     * Starts a new reading session. The whole chunk list is handed over at once
-     * so the native side can own queueing, pause and resume independently.
+     * Starts a new reading session. The whole segment list is handed over at
+     * once so the native side can own queueing, pause and resume independently.
+     * Each segment carries the language it was detected as, so a Hindi run and
+     * an English run inside one message are read by the right voices.
      */
     @PluginMethod
     fun speak(call: PluginCall) {
-        val instance = engine()
-        if (instance == null) {
-            call.reject(initError ?: "Text-to-speech engine is not ready")
-            return
+        whenReady(call) { instance ->
+            val list = call.getArray("segments")
+            if (list == null || list.length() == 0) {
+                call.reject("No text to speak")
+                return@whenReady
+            }
+
+            val pending = ArrayList<Segment>(list.length())
+            for (i in 0 until list.length()) {
+                val text = list.getString(i)?.takeIf { it.isNotBlank() } ?: continue
+                pending.add(Segment(text, list.getJSONObject(i)?.optString("lang") ?: ""))
+            }
+            if (pending.isEmpty()) {
+                call.reject("No text to speak")
+                return@whenReady
+            }
+
+            rate = call.getFloat("rate", 1.0f)?.coerceIn(0.1f, 10f) ?: 1.0f
+            pitch = call.getFloat("pitch", 1.0f)?.coerceIn(0f, 2f) ?: 1.0f
+            voiceId = call.getString("voiceId")
+
+            halt()
+            segments = pending
+            index = 0
+            wordOffset = 0
+            paused = false
+            active = true
+            session.incrementAndGet()
+
+            pendingAt(0)
+            call.resolve()
         }
-
-        val list = call.getArray("chunks")
-        if (list == null || list.length() == 0) {
-            call.reject("No text to speak")
-            return
-        }
-
-        val pending = ArrayList<String>(list.length())
-        for (i in 0 until list.length()) {
-            list.getString(i)?.takeIf { it.isNotBlank() }?.let { pending.add(it) }
-        }
-        if (pending.isEmpty()) {
-            call.reject("No text to speak")
-            return
-        }
-
-        rate = call.getFloat("rate", 1.0f)?.coerceIn(0.1f, 10f) ?: 1.0f
-        pitch = call.getFloat("pitch", 1.0f)?.coerceIn(0f, 2f) ?: 1.0f
-        voiceId = call.getString("voiceId")
-        voice = resolveVoice(voiceId, call.getString("lang"))
-
-        halt()
-        chunks = pending
-        index = 0
-        wordOffset = 0
-        paused = false
-        active = true
-        session.incrementAndGet()
-
-        instance.setSpeechRate(rate)
-        instance.setPitch(pitch)
-        pendingAt(0)
-        call.resolve()
     }
 
     private fun pendingAt(position: Int) {
-        if (!active || position >= chunks.size) {
+        if (!active || position >= segments.size) {
             complete()
             return
         }
         index = position
         val instance = engine() ?: return
-        val text = chunks[position]
+        val segment = segments[position]
+        // Resolved per segment: this is what makes a mixed-language message
+        // readable, and what stops Devanagari being read by an English voice.
+        val segmentVoice = resolveVoice(segment.lang)
+        applyVoice(instance, segmentVoice)
         val params = Bundle()
         params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId(position))
-        instance.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId(position))
+        instance.speak(segment.text, TextToSpeech.QUEUE_FLUSH, params, utteranceId(position))
+    }
+
+    /**
+     * Applies the chosen voice, rate and pitch to the engine.
+     *
+     * Setting the voice is what makes the picker and the per-segment language
+     * actually work, and it is also what makes Devanagari sound right: without
+     * it the engine reads Hindi text in its own default language, which is what
+     * produces the garbled pronunciation. An engine can refuse a voice it no
+     * longer has, so this falls back to the engine default instead of failing.
+     */
+    private fun applyVoice(instance: TextToSpeech, preferred: Voice?) {
+        if (preferred != null) {
+            try {
+                instance.voice = preferred
+            } catch (_: Exception) {
+                // Voice disappeared since it was listed; keep the engine default.
+            }
+        }
+        instance.setSpeechRate(rate)
+        instance.setPitch(pitch)
+    }
+
+    /**
+     * Opens the system text-to-speech settings so a missing voice can be
+     * installed. Reports failure instead of crashing when the device has no
+     * such screen.
+     */
+    @PluginMethod
+    fun openVoiceSettings(call: PluginCall) {
+        val response = JSObject()
+        response.put("opened", openTtsSettings())
+        call.resolve(response)
+    }
+
+    /**
+     * Opens the system text-to-speech settings so a missing voice can be
+     * installed.
+     *
+     * The action differs between Android versions and some OEM builds ship only
+     * the fully qualified one, so each known action is tried in turn and the
+     * first the device actually resolves wins. The action is written out
+     * rather than referenced as a constant because it is absent from some
+     * compile SDKs even though devices respond to it.
+     */
+    private fun openTtsSettings(): Boolean {
+        val actions = listOf(
+            "com.android.settings.TTS_SETTINGS",
+            "android.settings.TTS_SETTINGS"
+        )
+        for (action in actions) {
+            try {
+                val intent = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    return true
+                }
+            } catch (_: Exception) {
+                // Try the next known action.
+            }
+        }
+        return false
     }
 
     private fun utteranceId(position: Int): String = "ra-${session.get()}-$position"
@@ -208,7 +324,7 @@ class ReadAloudTtsPlugin : Plugin() {
             val position = positionOf(utteranceId) ?: return
             if (!active || paused) return
             val next = position + 1
-            if (next >= chunks.size) complete() else pendingAt(next)
+            if (next >= segments.size) complete() else pendingAt(next)
         }
 
         @Suppress("DEPRECATION")
@@ -243,15 +359,15 @@ class ReadAloudTtsPlugin : Plugin() {
     private fun emitChunkStart(position: Int) {
         val payload = JSObject()
         payload.put("index", position)
-        payload.put("total", chunks.size)
-        payload.put("text", chunks.getOrElse(position) { "" })
+        payload.put("total", segments.size)
+        payload.put("text", segments.getOrElse(position) { Segment("", "") }.text)
         notifyListeners("ttsChunkStart", payload)
     }
 
     private fun complete() {
         active = false
         paused = false
-        chunks = emptyList()
+        segments = emptyList()
         wordOffset = 0
         notifyListeners("ttsComplete", JSObject())
     }
@@ -260,7 +376,7 @@ class ReadAloudTtsPlugin : Plugin() {
         if (!active) return
         active = false
         paused = false
-        chunks = emptyList()
+        segments = emptyList()
         val payload = JSObject()
         payload.put("message", message)
         notifyListeners("ttsError", payload)
@@ -310,18 +426,19 @@ class ReadAloudTtsPlugin : Plugin() {
             return
         }
 
-        val chunk = chunks.getOrNull(index)
-        if (chunk == null) {
+        val segment = segments.getOrNull(index)
+        if (segment == null) {
             complete()
             call.resolve()
             return
         }
 
-        val remainder = chunk.substring(wordOffset.coerceIn(0, chunk.length))
+        val remainder = segment.text.substring(wordOffset.coerceIn(0, segment.text.length))
         val params = Bundle()
         params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId(index))
-        instance.setSpeechRate(rate)
-        instance.setPitch(pitch)
+        // The same voice as before the pause, resolved from this segment's
+        // language, so resuming never drops into the wrong pronunciation.
+        applyVoice(instance, resolveVoice(segment.lang))
         instance.speak(remainder, TextToSpeech.QUEUE_FLUSH, params, utteranceId(index))
         call.resolve()
     }
@@ -329,7 +446,7 @@ class ReadAloudTtsPlugin : Plugin() {
     @PluginMethod
     fun stop(call: PluginCall) {
         halt()
-        chunks = emptyList()
+        segments = emptyList()
         index = 0
         wordOffset = 0
         paused = false
